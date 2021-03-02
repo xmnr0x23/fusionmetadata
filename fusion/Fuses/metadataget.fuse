@@ -1,0 +1,149 @@
+--[[--
+--]]--
+
+-- ============================================================================
+-- constants
+-- ============================================================================
+FUSE_NAME = "MetadataGet"
+DATATYPE = "Text"
+
+-- ============================================================================
+-- fuse
+-- ============================================================================
+FuRegisterClass(FUSE_NAME, CT_Tool, {
+    REGID_DataType = DATATYPE,
+    REGID_InputDataType = DATATYPE,
+    REG_NoCommonCtrls = true,
+    REGS_Category = "Vonk\\Metadata",
+    REGS_Name = FUSE_NAME,
+    REGS_OpDescription = "Gets the value of a Metadata key.",
+    REGS_OpIconString = FUSE_NAME,
+    REG_TimeVariant = true, -- required to disable caching of the current time parameter
+    REGB_Temporal = true, -- ensures reliability in Resolve 15
+})
+
+-- ============================================================================
+-- modules
+-- ============================================================================
+local json = self and require( "dkjson" ) or nil
+
+-- ============================================================================
+-- variables
+-- ============================================================================
+
+function Create()
+    -- Remove the default "Controls" page from the Fuse GUI
+    --self:RemoveControlPage( "Controls" )
+
+    -- Add a new "File" page to the Fuse GUI
+    --self:AddControlPage( "File" )
+
+    InData = self:AddInput(
+        "Input",
+        "Input",
+        {
+            LINKID_DataType = "Image",
+            --INPID_InputControl = "ImageControl",
+            LINK_Main = 1,
+            --LINK_Visible = false,
+        }
+    )
+
+    -- ShowWireData = self:AddInput(
+        -- "Wire",
+        -- "WireData",
+        -- {
+            -- LINKID_DataType = "Number",
+            -- INPID_InputControl = "CheckboxControl",
+            -- INP_Integer = true,
+            -- INP_Default = 0.0,
+            -- INP_External = false,
+            -- INP_DoNotifyChanged = true,
+            -- ICD_Width = 0.2,
+        -- }
+    -- )
+
+    InKey = self:AddInput(
+        "Key",
+        "Key",
+        {
+            LINKID_DataType = "Text",
+            --INPID_InputControl = "ImageControl",
+            INPID_InputControl = "TextEditControl",
+            TEC_Lines = 1,
+            --ICD_Width = 0.8,
+            LINK_Main = 2,
+        }
+    )
+
+    ShowWireKey = self:AddInput(
+        "Wire",
+        "WireKey",
+        {
+            LINKID_DataType = "Number",
+            INPID_InputControl = "CheckboxControl",
+            INP_Integer = true,
+            INP_Default = 0.0,
+            INP_External = false,
+            INP_DoNotifyChanged = true,
+            ICD_Width = 0.2,
+        }
+    )
+
+    -- The output node connection where data is pushed out of the fuse
+    OutData = self:AddOutput(
+        "Output",
+        "Output",
+        {
+            LINKID_DataType = "Text",
+            LINK_Main = 1,
+        }
+    )
+end
+
+function NotifyChanged( inp , param , time )
+    --[[
+    Handles all input control events.
+
+    :param inp: input that triggered a signal
+    :type inp: Input
+
+    :param param: parameter object holding the (new) value
+    :type param: Parameter
+
+    :param time: current frame number
+    :type time: float
+    ]]
+
+    if inp == ShowWireKey then
+        if param.Value == 1.0 then
+            InKey:SetAttrs( { LINK_Visible = true } )
+        else
+            InKey:SetAttrs( { LINK_Visible = false } )
+        end
+    elseif inp == ShowWireData then
+        if param.Value == 1.0 then
+            InData:SetAttrs( { LINK_Visible = true } )
+        else
+            InData:SetAttrs( { LINK_Visible = false } )
+        end
+    end
+end
+
+-- The OnAddToFlow() function is automatically run when the a new fuse node is added to the comp, or when the .comp file is opened up.
+function OnAddToFlow()
+end
+
+function Process( req )
+    local image_in = InData:GetValue( req )
+    local meta_key = InKey:GetValue( req ).Value
+
+    -- get value from metadata
+    local meta_value = image_in.Metadata[meta_key]
+    --dump( meta_value )
+    
+    local json_str_out = json.encode( meta_value )
+    --dump( json_value )
+    
+    OutData:Set( req , Text( json_str_out ) )
+end
