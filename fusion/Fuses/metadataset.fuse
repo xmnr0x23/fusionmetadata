@@ -1,0 +1,176 @@
+--[[--
+--]]--
+
+-- ============================================================================
+-- constants
+-- ============================================================================
+FUSE_NAME = "MetadataSet"
+DATATYPE = "Text"
+
+-- ============================================================================
+-- fuse
+-- ============================================================================
+FuRegisterClass(FUSE_NAME, CT_Tool, {
+    REGID_DataType = DATATYPE,
+    REGID_InputDataType = DATATYPE,
+    REG_NoCommonCtrls = true,
+    REGS_Category = "Vonk\\Metadata",
+    REGS_Name = FUSE_NAME,
+    REGS_OpDescription = "Sets the value of a Metadata key.",
+    REGS_OpIconString = FUSE_NAME,
+    REG_TimeVariant = true, -- required to disable caching of the current time parameter
+    REGB_Temporal = true, -- ensures reliability in Resolve 15
+})
+
+-- ============================================================================
+-- modules
+-- ============================================================================
+local json = self and require( "dkjson" ) or nil
+
+-- ============================================================================
+-- variables
+-- ============================================================================
+
+function Create()
+    -- Remove the default "Controls" page from the Fuse GUI
+    --self:RemoveControlPage( "Controls" )
+
+    -- Add a new "File" page to the Fuse GUI
+    --self:AddControlPage( "File" )
+
+    InImage = self:AddInput(
+        "Input",
+        "Input",
+        {
+            LINKID_DataType = "Image",
+            --INPID_InputControl = "ImageControl",
+            LINK_Main = 1,
+            --LINK_Visible = false,
+        }
+    )
+
+    -- ShowWireData = self:AddInput(
+        -- "Wire",
+        -- "WireData",
+        -- {
+            -- LINKID_DataType = "Number",
+            -- INPID_InputControl = "CheckboxControl",
+            -- INP_Integer = true,
+            -- INP_Default = 0.0,
+            -- INP_External = false,
+            -- INP_DoNotifyChanged = true,
+            -- ICD_Width = 0.2,
+        -- }
+    -- )
+
+    InKey = self:AddInput(
+        "Key",
+        "Key",
+        {
+            LINKID_DataType = "Text",
+            --INPID_InputControl = "ImageControl",
+            INPID_InputControl = "TextEditControl",
+            TEC_Lines = 1,
+            --ICD_Width = 0.8,
+            LINK_Main = 2,
+        }
+    )
+
+    InValue = self:AddInput(
+        "Value",
+        "Value",
+        {
+            LINKID_DataType = "Text",
+            INPID_InputControl = "TextEditControl",
+            TEC_Lines = 1,
+            LINK_Main = 3,
+        }
+    )
+
+    ShowWireKey = self:AddInput(
+        "Wire",
+        "WireKey",
+        {
+            LINKID_DataType = "Number",
+            INPID_InputControl = "CheckboxControl",
+            INP_Integer = true,
+            INP_Default = 0.0,
+            INP_External = false,
+            INP_DoNotifyChanged = true,
+            ICD_Width = 0.2,
+        }
+    )
+
+    -- The output node connection where data is pushed out of the fuse
+    OutImage = self:AddOutput(
+        "Output",
+        "Output",
+        {
+            LINKID_DataType = "Image",
+            LINK_Main = 1,
+        }
+    )
+end
+
+function NotifyChanged( inp , param , time )
+    --[[
+    Handles all input control events.
+
+    :param inp: input that triggered a signal
+    :type inp: Input
+
+    :param param: parameter object holding the (new) value
+    :type param: Parameter
+
+    :param time: current frame number
+    :type time: float
+    ]]
+
+    if inp == ShowWireKey then
+        if param.Value == 1.0 then
+            InKey:SetAttrs( { LINK_Visible = true } )
+        else
+            InKey:SetAttrs( { LINK_Visible = false } )
+        end
+    elseif inp == ShowWireData then
+        if param.Value == 1.0 then
+            InImage:SetAttrs( { LINK_Visible = true } )
+        else
+            InImage:SetAttrs( { LINK_Visible = false } )
+        end
+    end
+end
+
+-- The OnAddToFlow() function is automatically run when the a new fuse node is added to the comp, or when the .comp file is opened up.
+function OnAddToFlow()
+end
+
+function Process( req )
+    local image_in = InImage:GetValue( req )
+    local meta_key = InKey:GetValue( req ).Value
+    local f_name = InKey:GetValue( req ).Value
+    local f_value = InValue:GetValue( req ).Value
+
+    local result = Image(
+        {
+            IMG_Like = image_in,
+            IMG_NoData = req:IsPreCalc()
+        }
+    )
+    -- Crop (with no offset, ie. Copy) handles images having no data, so we don't need to put this within if/then/end
+    image_in:Crop(
+        result,
+        { }
+    )
+
+    if ( f_name ~= "" ) then
+        local newmetadata = result.Metadata or {}
+
+        if f_value ~= "" then
+            newmetadata[f_name] = f_value
+            result.Metadata = newmetadata
+        end
+    end
+
+    OutImage:Set(req, result)
+end
